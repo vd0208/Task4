@@ -1,0 +1,145 @@
+\documentclass[11pt]{article}
+
+% Change "review" to "final" to generate the final (sometimes called camera-ready) version.
+% Change to "preprint" to generate a non-anonymous version with page numbers.
+\usepackage[final]{acl}
+
+% Standard package includes
+\usepackage{times}
+\usepackage{latexsym}
+
+% For proper rendering and hyphenation of words containing Latin characters (including in bib files)
+\usepackage[T1]{fontenc}
+% For Vietnamese characters
+% \usepackage[T5]{fontenc}
+% See https://www.latex-project.org/help/documentation/encguide.pdf for other character sets
+
+% This assumes your files are encoded as UTF8
+\usepackage[utf8]{inputenc}
+
+% This is not strictly necessary, and may be commented out,
+% but it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+% This is also not strictly necessary, and may be commented out.
+% However, it will improve the aesthetics of text in
+% the typewriter font.
+\usepackage{inconsolata}
+
+%Including images in your LaTeX document requires adding
+%additional package(s)
+\usepackage{graphicx}
+\usepackage{float}
+
+% If the title and author information does not fit in the area allocated, uncomment the following
+%
+%\setlength\titlebox{<dim>}
+%
+% and set <dim> to something 5cm or larger.
+\raggedbottom
+\title{AI and Text Analytics:\\Mining Insights from Customer Feedback}
+
+\author{MSc Data Science 2026\\ University of Bristol}
+
+
+\begin{document}
+\maketitle
+\begin{abstract}
+
+\end{abstract}
+
+\section{Introduction}
+Businesses and organisations are seeing increasing access to large volumes of unstructured customer feedback due to expanding digital communication channels. The objective of this report is to design and implement a text analytics pipeline, which can be applied to a corpus of customer feedback responses to uncover key issues and drive actionable business insights. To justify the design process, an overview of different text analytics methods will be presented, with two key stages of the pipeline (text representation and topic modeling) being evaluated as analytical axes. Multiple methods for each axis will be implemented, with performance assessed using appropriate quantitative and qualitative metrics. Results  will demonstrate how altering the stages of a text analytics pipeline affects the quality and interpretability of extracted insights, and these comparisons will justify implementation of a final design.
+
+The task is motivated by the growing need to mine insights from unstructured customer feedback, to provide organisations with crucial information for enhancing business and product development \citep{gallagher_application_2019}. Such techniques can identify patterns and represent latent themes within text responses \citep{blei_latent_2003}, informing businesses of general customer sentiment, areas of high performance and the root causes of poor customer experience. This, in turn, provides a data-driven gateway to resolving underlying issues, meaning businesses can enhance customer satisfaction, increasing long-term retention and sales to improve overall commercial performance \citep{gallagher_application_2019}.\subsection{Data}
+Two datasets were available for the task: [A] Customer Support Ticket Dataset from Kaggle and [B] customer-support-tickets from Hugging Face. Preliminary exploratory analysis was conducted on both to determine which was better suited to the task. After filtering to English-only entries [B] contained 28,261 tickets, providing a substantially larger corpus for analysis than the 8,467 tickets in [A]. A proportion of tickets in [A] contained semantically incoherent text, and customer feedback and agent responses were not consistently separated into distinct fields, reducing its suitability for text analysis. The eight classification tags in [B] displayed greater granularity than those in [A], and [B] contained a lower proportion of null values in key feature columns, indicating potential for more reliable and fine-grained topic classification downstream. Based on this comparative analysis, [B]  was selected to complete the task.
+Exploratory analysis on [B] gave insight to the structure of the data. The dataset contains 28,261 English entries, with 16 feature columns. Key columns include \texttt{subject}, \texttt{body}, \texttt{type}, \texttt{queue}, \texttt{priority} and \texttt{tag\_1}. Table \ref{tab:example} provides an example entry from the dataset, restricted to its key columns.
+\begin{table*}[h]
+\centering
+\caption{Example row entry (key columns only)}
+\label{tab:example}
+\begin{tabular}{p{3cm}p{2.5cm}p{2cm}p{3cm}p{1.5cm}p{1.2cm}}
+\hline
+\textbf{subject} & \textbf{body} & \textbf{type} & \textbf{queue} & \textbf{priority} & \textbf{tag\_1} \\
+\hline
+Account Disruption & Dear Customer            Support Team...& Incident & Technical Support & high & Account \\
+\hline
+\end{tabular}
+\end{table*}
+
+Table \ref{tab:textstats} describes the text length statistics of entries in the \texttt{body} column. The values reflect considerable variation in the level of customer description, motivating the need for robust issue classification techniques.
+
+\begin{table}[H]
+\centering
+\caption{Text length statistics of \texttt{body} field}
+\label{tab:textstats}
+\begin{tabular}{lrr}
+\hline
+\textbf{Statistic} & \textbf{Character Count} & \textbf{Word Count} \\
+\hline
+Count  & 28,261 & 28,261 \\
+Mean   & 371.27 & 55.35  \\
+Std    & 202.88 & 31.25  \\
+Min    & 4      & 1      \\
+25\%   & 203    & 30     \\
+50\%   & 365    & 54     \\
+75\%   & 533    & 79     \\
+Max    & 1,793  & 272    \\
+\hline
+\end{tabular}
+\end{table}
+
+Figure \ref{fig:wcountdist} visualises the word count distributions. The median word count is 54, and there is a right-skewed distribution, peaking around 75-80 words. This indicates a significant number of high word count tickets,  implying sufficient content for meaningful topic extraction. The lower tail of the plot shows that there are a number of very short tickets. These may lack sufficient semantic content, creating noise within the data.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=1.0\columnwidth]{wcountdist.png}
+\caption{Distribution of ticket word counts}
+\label{fig:wcountdist}
+\end{figure}
+
+Table \ref{tab:tagdist} displays the most frequently occurring ticket tags. Semantically broad tags such as \texttt{Tech Support} and \texttt{IT} are most common, reinforcing the need for higher-granularity classification of tickets for more useful insights.
+
+\begin{table}[H]
+\centering
+\caption{Top 10 most frequent ticket tags}
+\label{tab:tagdist}
+\begin{tabular}{lr}
+\hline
+\textbf{Tag} & \textbf{Frequency} \\
+\hline
+Tech Support & 14,444 \\
+IT & 14,052 \\
+Performance & 11,423 \\
+Feedback & 8,724 \\
+Documentation & 7,657 \\
+Bug & 7,534 \\
+Security & 6,602 \\
+Feature & 5,792 \\
+Disruption & 4,249 \\
+Outage & 3,594 \\
+\hline
+\end{tabular}
+\end{table}
+
+The key analysis columns \texttt{type}, \texttt{queue} and \texttt{priority} contained no missing values, whilst \texttt{body} and \texttt{subject} contained very few (0.004\% and 12.9\% respectively). The proportion of missing values increased substantially across higher-order tag columns, with \texttt{tag\_5},\texttt{tag\_6}, \texttt{tag\_7} and \texttt{tag\_8} containing 42\%, 72\%, 87\% and 94\% respectively, indicating that most tickets only carry up to five tags.
+
+\subsection{Criteria for strong solution}
+Given the objectives of the task and the available data, a strong pipeline architecture should satisfy the following criteria. It should obtain high output quality, assigning tickets to semantically meaningful groups with distinguishable themes. Technically, the pipeline should display robustness, able to deal with noisy data and ticket length disparities,  with results consistent and reproducible across runs. Finally, the pipeline should allow for the real-world task objectives to be met. Outputs should display coherence in the form of granular topic groupings, aligning with known ticket categories to enable practical and actionable insight into the organisation’s performance.
+
+
+
+
+
+
+
+
+
+
+
+
+\bibliography{custom}
+
+
+\end{document}
