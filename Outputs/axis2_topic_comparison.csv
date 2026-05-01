@@ -1,0 +1,6 @@
+Topic,LDA_Top_Words,BERTopic_Top_Words
+0,"issue, additional, matter, bill, let, let know, look, additional information, know, contact","issue, problem, resolve, restart, update, software, data, recent, server, matter"
+1,"security, medical, medical data, access, data, breach, hospital, system, measure, patient","security, medical, data, access, breach, hospital, information, system, patient, measure"
+2,"digital, brand, strategy, market, growth, digital strategy, brand growth, campaign, engagement, digital market","investment, tool, integration, provide, analytics, project, detail, management, data, appreciate"
+3,"detail, provide, integration, information, tool, management, investment, integrate, data, project","digital, brand, strategy, market, growth, engagement, campaign, target, enhance, content"
+4,"issue, problem, restart, resolve, software, update, server, encounter, recent, face","placeholder, placeholder, placeholder, placeholder, placeholder, placeholder, placeholder, placeholder, placeholder, placeholder"

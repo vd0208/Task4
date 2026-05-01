@@ -1,0 +1,5 @@
+Metric,K-means,HAC
+Silhouette,0.0604,0.0229
+ARI,0.2466,0.1581
+NMI,0.2452,0.1652
+Coherence,0.7737,0.71
