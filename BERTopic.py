@@ -22,10 +22,6 @@ from hdbscan import HDBSCAN
 from sklearn.feature_extraction.text import CountVectorizer
 
 def compute_coherence(topic_model, docs, top_n=10):
-    """
-    Compute Gensim C_v coherence score for a fitted BERTopic model.
-    Excludes the outlier topic (-1).
-    """
     topic_words = []
     for t_id in sorted(topic_model.get_topics().keys()):
         if t_id == -1:
@@ -48,10 +44,6 @@ def compute_coherence(topic_model, docs, top_n=10):
 
 
 def compute_diversity(topic_model, top_n=10):
-    """
-    Topic diversity = fraction of unique words across all top-N topic words.
-    Score of 1.0 means every word appears in exactly one topic.
-    """
     all_words = []
     for t_id in sorted(topic_model.get_topics().keys()):
         if t_id == -1:
