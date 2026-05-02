@@ -95,11 +95,6 @@ if __name__ == '__main__':
 
     print(f'Embedding shape: {X_embeddings.shape}')   # (27919, 384)
 
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # PART 2 — NEW: BERTopic (AXIS2)
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # From here everything is new BERTopic code.
-
     N_TOPICS_LIST = [5, 10, 15, 20, 25, 30, 35, 40, 45]   # sweep as required by AXIS2 spec
 
     print('BERTopic imports OK.')
