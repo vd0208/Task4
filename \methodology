@@ -1,0 +1,83 @@
+3. METHODOLOGY
+
+3.1 Exploratory Data Analysis (EDA)
+
+The dataset of customer support tickets was obtained directly from the HuggingFace Hub (Tobi-Bueck/customer-support-tickets) after filtering only those in the English language, resulting in a total of 28,261 tickets labelled with ground truth labels within four ITIL categories: Incident, Request, Problem, and Change. After preprocessing and removal of short tickets, the final corpus comprised 27,919 tickets used in all subsequent analyses. The exploratory analysis included examining missing data, tag frequency, text length distribution, and cross-tabulations between ticket types and priorities. Analysis of word counts indicated high variation and a long-tailed distribution beyond 200 words, informing the truncation parameter used during preprocessing. Class imbalance favouring Incident tickets was noted and considered when interpreting clustering outputs.
+
+
+3.2 Preprocessing
+
+Text Cleaning: Literal escape sequences (e.g. \n stored as strings) were replaced with spaces. Boilerplate greetings and closings (e.g. "Dear Customer Support Team", "Best regards") were removed using regular expressions. Contractions were expanded (e.g. "can't" -> "cannot"). Hyphenated words were split into separate tokens to prevent incorrect merging (e.g. "cloud-native" -> "cloud native"). Text was converted to lowercase. All non-alphabetic characters were removed.
+
+Language Filtering: langdetect was applied to the cleaned data to filter out any remaining non-English tickets.
+
+Stopword Removal: Scikit-learn's ENGLISH_STOP_WORDS set was removed from the corpus, supplemented by a custom list of domain-specific stopwords (dear, customer, support, team, hello, hi, thanks, regards, please, kindly, hope, message) that occur frequently across all ticket types but carry no discriminative power.
+
+Lemmatisation: Lemmatisation was performed using WordNetLemmatizer with two passes covering both verbs and nouns.
+
+Removing Short Tickets: Tickets containing three or fewer tokens after preprocessing were removed as they contain insufficient information for clustering or topic modelling.
+
+Truncation: The 99th percentile of post-preprocessing token counts was calculated to be 85 tokens. Tickets exceeding this threshold were truncated to 85 tokens, preserving complete information for 99% of the corpus. The output was saved to complete_preprocessing_final.csv, which contains the original body, cleaned text, tokens, processed tokens, and the final trunc_processed_text column used in all downstream analyses.
+
+
+3.3 Initial Clustering: Determining Optimal k
+
+As required by the task brief, initial clustering was performed using K-Means and HAC prior to the core analysis axes in order to select k in a data-driven manner, avoiding circular reasoning in Axis 1 and Axis 2. TF-IDF vectors were used as a neutral baseline representation at this stage, computed via TfidfVectorizer (5,000 features, max_df=0.85, min_df=5).
+
+K-Means was run for k in {5, 6, 10, 15} across five random seeds {42, 7, 123, 0, 99}, resulting in 20 experiments. For each configuration, the following metrics were recorded: silhouette score (cosine similarity), reflecting cluster cohesion and separation without label information; Adjusted Rand Index (ARI) and Normalised Mutual Information (NMI) relative to ground-truth ticket types; topic coherence via the c_v metric; and inertia for elbow plot analysis.
+
+Clustering stability was assessed by computing the mean ARI across all pairwise combinations of seed runs for each k value. At k=5, stability ARI reached 0.9973, indicating near-identical cluster assignments regardless of random initialisation. This dropped sharply to 0.8899 at k=6, suggesting the sixth cluster is not reproducible and likely represents noise rather than genuine structure.
+
+HAC was applied to a randomly sampled subset of 500 documents using Ward linkage. HAC is deterministic and requires no seed variation. A dendrogram was computed on the same 500-document sample, which showed a natural cut at Ward distance approximately 2.0 yielding five well-separated groups with a large gap above, independently corroborating k=5.
+
+A direct comparison of K-Means and HAC at k=5 on TF-IDF revealed complementary strengths:
+
+  Method      Silhouette   ARI     NMI     Coherence
+  K-Means     0.0381       0.2553  0.2583  0.7605
+  HAC         0.1055       0.2722  0.2925  0.7280
+
+K-Means achieved higher coherence (0.7605 vs 0.7280), while HAC achieved higher silhouette, ARI and NMI. Both methods were considered in the k selection decision.
+
+K-Means analysis showed that k=5 was optimal across multiple metrics. Although HAC's dendrogram also supported k=5 as a natural grouping, the two algorithms showed differing preferences due to their distinct optimisation objectives: K-Means minimises within-cluster sum of squares, while HAC maximises inter-cluster distance. We selected k=5 for three reasons: (1) convergence of the elbow curve and peak silhouette score at k=5 from K-Means analysis, (2) domain knowledge about the four ITIL ticket categories suggesting k=4-5, and (3) the need for sufficiently granular themes for downstream analysis.
+
+At k=5 with seed=42, five interpretable customer issue themes emerged from K-Means clustering:
+
+  Cluster 0 (5,514 tickets, 19.7%):  Healthcare and Security Issues
+  Cluster 1 (12,292 tickets, 44.0%): Technical Support and System Failures
+  Cluster 2 (3,754 tickets, 13.4%):  SaaS Platform and Project Management
+  Cluster 3 (3,763 tickets, 13.5%):  Digital Marketing and Brand Strategy
+  Cluster 4 (2,596 tickets, 9.3%):   Data Analytics and Investment Decisions
+
+The dominance of Cluster 1 (44.0%) indicates that technical system failures are the primary driver of customer contact. Confusion matrices between cluster assignments and ground-truth ITIL categories were produced for post-hoc alignment analysis, confirming that Cluster 1 is strongly associated with Incident and Problem tickets, while Cluster 2 is almost entirely composed of Request tickets.
+
+
+3.4 Axis 1: Text Representation (TF-IDF vs. Sentence Embeddings)
+
+The task brief identifies text representation as a candidate analytic axis, contrasting approaches such as TF-IDF vectors and embeddings. We therefore defined our first axis as follows:
+
+Hypothesis: Sentence embeddings will produce more coherent and interpretable clusters than TF-IDF vectors, because they capture semantic and synonymic relationships that keyword co-occurrence statistics cannot represent. This is especially relevant for short, informal customer support tickets where the same issue can be described with very different vocabulary.
+
+TF-IDF (classical baseline): Vectors were computed via TfidfVectorizer using 5,000 features, max_df=0.85, min_df=5, ngram_range=(1,2), and sublinear_tf=True. The inclusion of bigrams and log-scaled term frequencies extends the classical bag-of-words scheme with richer features.
+
+Sentence Embeddings (modern approach): Dense 384-dimensional vectors were extracted using the all-MiniLM-L6-v2 model, a pre-trained sentence transformer fine-tuned on large-scale semantic similarity tasks that captures contextual meaning at the sentence level. To ensure reproducibility and avoid repeated encoding time (~5-10 minutes for 27,919 tickets), computed embeddings were serialised to disk as embeddings_minilm.npy and reloaded for all subsequent experiments.
+
+For both representations, clustering was performed with K-Means (k in {5, 6, 10, 15}, seeds {42, 7, 123, 0, 99}) and HAC with Ward linkage at the same k values. Cosine similarity was used for K-Means on TF-IDF (sparse matrix), while Euclidean distance was used for embeddings (dense). For HAC on TF-IDF, dimensionality was first reduced to 50 components using TruncatedSVD. No reduction was applied before HAC on embeddings.
+
+Performance was evaluated using: silhouette score (internal validation); ARI and NMI against ground-truth ticket types (external validation); topic coherence via the c_v metric; and stability ARI across seed pairs. Detailed cluster analysis at k=5, seed=42 included top-10 terms per cluster for interpretability, t-SNE visualisations for 2D cluster representation, silhouette plots, and cluster size distributions for all representations. Confusion matrices between cluster and ground-truth assignments were produced solely for post-hoc analysis, preserving the unsupervised nature of the evaluation.
+
+
+3.5 Axis 2: Topic Modelling (LDA vs. BERTopic)
+
+Following Axis 1, the task brief suggests topic modelling as a candidate analytic axis. Whereas Axis 1 assessed representational quality via clustering, Axis 2 evaluates whether different topic modelling paradigms produce meaningfully different insights into customer issues.
+
+Hypothesis: BERTopic, which leverages dense sentence embeddings and density-based clustering (HDBSCAN), is hypothesised to produce more coherent and interpretable topics than LDA, which relies on bag-of-words TF-IDF representations and assumes a Dirichlet prior over word distributions. This is expected because embeddings capture contextual and synonymic relationships that word co-occurrence statistics cannot represent, enabling more semantically meaningful topic boundaries.
+
+The pre-computed TF-IDF representations and sentence embeddings from Axis 1 were reused without modification.
+
+LDA (baseline approach): The scikit-learn implementation of LatentDirichletAllocation was trained on the TF-IDF representation using online learning with parameters: learning_method='online', batch_size=128 for computational efficiency on 27,919 documents, max_iter=20, and random_state=42. To independently validate k=5 for topic modelling rather than directly adopting it from clustering, a range of topic counts n_topics in {3, 5, 7, 10, 15} was tested and coherence scores were computed, before confirming five as optimal.
+
+BERTopic (modern approach): Pre-computed all-MiniLM-L6-v2 embeddings were passed into BERTopic with min_topic_size=100. The model was first fitted to find natural groupings, then constrained to five topics using reduce_topics() for fair comparison with LDA. Where topic reduction produced empty topics due to merging, the top-10 most frequent terms from documents belonging to that topic were used to ensure all five topics had meaningful word representations.
+
+Topic quality was evaluated using: c_v coherence score for each model; topic diversity measured as the percentage of unique words across the top-25 word lists of all topics; LDA perplexity; and ARI and NMI between topic assignments and Axis 1 cluster assignments to assess cross-method consistency.
+
+All experiments were implemented in Python using scikit-learn (clustering, TF-IDF, evaluation metrics), sentence-transformers (embeddings), gensim (coherence computation), BERTopic (topic modelling), scipy (hierarchical clustering), and matplotlib/seaborn (visualisation). Random seeds were explicitly set for all stochastic algorithms (primary seed: 42) to ensure reproducibility. All outputs were saved to a structured results directory with consistent naming conventions for downstream analysis and reporting.
